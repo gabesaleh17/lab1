@@ -21,6 +21,12 @@ unsigned int offsetLength(int blockSize);
 unsigned int setIndexLength(int numberOfSets);
 int getNumberOfTagBits(int lengthOfAddress, int blockOffset, int setIndex);
 unsigned int logTwo(unsigned int num);
+int hitWay(unsigned int tag, unsigned int set, unsigned int **tagArray, int **lruArray, unsigned int K);
+void updateOnHit(unsigned int set, int index, unsigned int K, int **lruArray);
+void updateOnMiss(unsigned int tag, unsigned int set, int index, unsigned int K, unsigned int **tagArray, int **lruArray);
+
+double missRate;
+double hitCount, missCount, totalCount;
 
 
 
@@ -62,47 +68,21 @@ int main(int argc, char* argv[])
         for(int j = 0; j < K; j++) {
             lruArray[i][j] = -1;
         }
-        printf("\n");
     }
-    
-    /*for (int i = 0; i < numberOfSets; i++) {
-        for(int j = 0; j < K; j++) {
-            printf("%d\t",tagArray[i][j]);
-        }
-        printf("\n");
-    }*/
-
-    
-    
-   
+       
    while((retVal = fscanf(fp,"%x",&i))!=EOF)
     {
-        // read 1 line of trace file
-        // output virtual address in hex
         
-        //Code where we evaluate every trace line and its bits
-        //
-        //
-        //
-        //
-        //
-        //
-        //
-        ////////////////////////////////////////////////////////
         set = whichSet(i, numOffsetBits, numIndexBits);
-        printf("address = %x\n",i);
-        printf("in set %d \n", set);
         tag = tagBits(i,numOffsetBits,numIndexBits);
-        printf("tag bits are %d \n", tag);
-        
+        hitWay(tag, set, tagArray, lruArray, K);
         
         
     }
     
- 
-    
     fclose(fp);
-    printf("K=%d, L= %d, C=%d", K, L, C);
+    missRate = missCount/totalCount;
+    printf("%s, %d, %d, %d, %f\n",argv[4], atoi(argv[3]), K, L, missRate);
     
     
     
@@ -127,48 +107,111 @@ int tagBits(unsigned int address, unsigned int offsetLength, unsigned int setInd
     return address >> (offsetLength + setIndexLength);
 }
 
-int hitWay(unsigned int set, unsigned int way, int *tagArray)
+//checks if there is a hit or miss and calls appropriate functions based on result
+int hitWay(unsigned int tag, unsigned int set, unsigned int **tagArray, int **lruArray, unsigned int K)
 {
+    totalCount++;
     
-    if ()
+    if(K==1)
     {
+        if(tagArray[set][0] ==tag)
+            hitCount++;
+        else
+            missCount++;
         
-        return way;
+        tagArray[set][0]=tag;
+        lruArray[set][0]=0;
     }
-    else
+    
+    int index = -2;
+    int tagArrayIndex = 0;
+   
+    
+    for(int a = 0; a < K; a++)
     {
-        
-        return -1;
+        if(tagArray[set][a] == tag)
+        {
+            hitCount++;
+            tagArrayIndex = a;
+            updateOnHit(set,tagArrayIndex, K, lruArray);
+            return a;
+        }
     }
     
     
     
+        for(int i = 0; i < K; i++)
+        {
+            if (lruArray[set][i] == -1)
+            {
+                index = i;
+                break;
+            }
+        }
+    
+        if (index == -2)
+        {
+            int max = 0;
+            for(int i = 0; i < K; i++)
+            {
+                if(lruArray[set][i] > max)
+                {
+                    max = lruArray[set][i];
+                    index = i;
+                }
+            }
+        }
+    
+        
+    updateOnMiss(tag,set,index, K, tagArray, lruArray);
+    return -1;
+
 }
 
-void updateOnHit()
+//updates lru array on a hit
+void updateOnHit(unsigned int set, int index, unsigned int K, int **lruArray)
 {
+    for(int i = 0; i < K; i++)
+    {
+        if(lruArray[set][i] != -1)
+        {
+            lruArray[set][i]++;
+        }
+    
+    }
+    
+    
+    lruArray[set][index] = 0;
     
     
 }
 
-void updateOnMiss()
+//updates tag array and lru array on a cache miss
+void updateOnMiss(unsigned int tag, unsigned int set, int index, unsigned int K, unsigned int **tagArray, int **lruArray)
 {
+    missCount++;
+    for(int i = 0; i < K; i++)
+    {
+        if(lruArray[set][i] != -1)
+        {
+            lruArray[set][i]++;
+        }
+        
+    }
+
+    lruArray[set][index] = 0;
+    tagArray[set][index] = tag;
     
 }
 
-//helper functions
+
+/******helper functions******/
 
 //returns number of sets in cache
 int getNumberOfSets(int cacheSize, int blockSize, int associativity)
 {
     return cacheSize/(blockSize * associativity);
     
-}
-
-//returns number of blocks/lines in cache
-int numberOfBlocks(int cacheSize, int blockSize)
-{
-    return cacheSize/blockSize;
 }
 
 //returns number of offset bits
@@ -197,6 +240,7 @@ unsigned int setIndexLength(int numberOfSets)
     return length - 1;
 }
 
+
 unsigned int logTwo(unsigned int num)
 {
     num |= num >> 1;
@@ -209,7 +253,3 @@ unsigned int logTwo(unsigned int num)
     
 }
 
-int getNumberOfTagBits(int lengthOfAddress, int blockOffset, int setIndex)
-{
-    return lengthOfAddress - offsetLength(blockOffset) - setIndexLength(setIndex);
-}
